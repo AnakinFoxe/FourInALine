@@ -12,6 +12,7 @@ typedef int bool;
 #define GRID_EMPTY  0
 #define GRID_X      1
 #define GRID_O      2
+#define GRID_THINK  6
 
 
 // winning number
@@ -29,39 +30,42 @@ char input_[INPUT_LEN];
 int getInput(char *input);
 void makeMove(int x, int y, int grid);
 bool isLegal(int x, int y);
-void printBoard();
+void printBoard(int board[LENGTH][LENGTH]);
 
 /**
  * Core Function Declarations
  */
-int scoreBoard();
+int scoreBoard(int board[LENGTH][LENGTH]);
 
-
+void test(int a[LENGTH][LENGTH]);
 /**
 * Main Function
 */
 int main() {
 
-//    printBoard();
-//
-//    while (1) {
-//
-//        int move = getInput(input_);
-//        int moveX = move / 10;
-//        int moveY = move % 10;
-//
-//        makeXMove(moveX, moveY);
+    printBoard(board_);
 
-    makeMove(0, 1, GRID_O);
-    makeMove(0, 3, GRID_O);
-    makeMove(0, 4, GRID_O);
-    makeMove(0, 6, GRID_X);
-    makeMove(0, 7, GRID_X);
+    while (1) {
+
+        int move = getInput(input_);
+        int moveI = move / 10;
+        int moveJ = move % 10;
+
+        makeMove(moveI, moveJ, GRID_O);
+
+//    makeMove(0, 1, GRID_O);
+//    makeMove(0, 3, GRID_O);
+//    makeMove(0, 4, GRID_O);
+//    makeMove(0, 6, GRID_X);
+//    makeMove(0, 7, GRID_X);
 
 
-        printBoard();
-        scoreBoard();
-//    }
+        printBoard(board_);
+        scoreBoard(board_);
+
+
+        break;
+    }
 
     return 0;
 }
@@ -103,22 +107,25 @@ bool isLegal(int x, int y) {
             && (board_[x][y] == GRID_EMPTY));
 }
 
-void printBoard() {
+void printBoard(int board[LENGTH][LENGTH]) {
     // caption row
     printf("  1 2 3 4 5 6 7 8\n");
     char cap = 'A';
     for (int i = 0; i < LENGTH; ++i) {
         printf("%c ", cap++);
         for (int j = 0; j < LENGTH; ++j) {
-            switch (board_[i][j]) {
+            switch (board[i][j]) {
                 case GRID_EMPTY:
-                    printf("-");
+                    printf(" ");
                     break;
                 case GRID_X:
                     printf("X");
                     break;
                 case GRID_O:
                     printf("O");
+                    break;
+                case GRID_THINK:
+                    printf("-");
                     break;
                 default:
                     break;
@@ -133,7 +140,7 @@ void printBoard() {
 /**
  * Core Function Definitions
  */
-int scoreBoard() {
+int scoreBoard(int board[LENGTH][LENGTH]) {
     int totalScoreX = 0;
     int totalScoreO = 0;
     // row by row
@@ -148,10 +155,12 @@ int scoreBoard() {
         int scoreX = 0;
         int scoreO = 0;
         for (int j = 0; j < LENGTH; ++j) {
-            switch (board_[i][j]) {
+            switch (board[i][j]) {
                 case GRID_EMPTY:
+                case GRID_THINK:
                     switch (dominantGrid) {
                         case GRID_EMPTY:
+                        case GRID_THINK:
                             //++spaceEmpty;
                             break;
                         case GRID_X:
@@ -168,11 +177,12 @@ int scoreBoard() {
                 case GRID_X:
                     switch (dominantGrid) {
                         case GRID_EMPTY:
+                        case GRID_THINK:
                             spaceX += spaceEmpty;
                             spaceEmpty = 0;
                             break;
                         case GRID_X:
-                            if (previousGrid == GRID_EMPTY)
+                            if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK)
                                 spaceEmpty = 0;
                             break;
                         case GRID_O:    // checkpoint
@@ -193,6 +203,7 @@ int scoreBoard() {
                 case GRID_O:
                     switch (dominantGrid) {
                         case GRID_EMPTY:
+                        case GRID_THINK:
                             spaceO += spaceEmpty;
                             spaceEmpty = 0;
                             break;
@@ -205,7 +216,7 @@ int scoreBoard() {
                             spaceEmpty = 0;
                             break;
                         case GRID_O:
-                            if (previousGrid == GRID_O)
+                            if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK)
                                 spaceEmpty = 0;
                             break;
                         default:
@@ -216,9 +227,9 @@ int scoreBoard() {
                     dominantGrid = GRID_O;
                 default:
                     break;
-            }   // end of switch (board_[i][j]
+            }   // end of switch (board[i][j]
 
-            previousGrid = board_[i][j];
+            previousGrid = board[i][j];
 
         }   // end of for-j
 
@@ -245,7 +256,7 @@ int scoreBoard() {
         int scoreX = 0;
         int scoreO = 0;
         for (int i = 0; i < LENGTH; ++i) {
-            switch (board_[i][j]) {
+            switch (board[i][j]) {
                 case GRID_EMPTY:
                     switch (dominantGrid) {
                         case GRID_EMPTY:
@@ -313,11 +324,11 @@ int scoreBoard() {
                     dominantGrid = GRID_O;
                 default:
                     break;
-            }   // end of switch (board_[i][j]
+            }   // end of switch (board[i][j]
 
-            previousGrid = board_[i][j];
+            previousGrid = board[i][j];
 
-        }   // end of for-j
+        }   // end of for-i
 
         // checkpoint
         if (spaceX >= WIN_LENGTH)
@@ -328,7 +339,7 @@ int scoreBoard() {
         totalScoreX += scoreX;
         totalScoreO += scoreO;
         printf("column %d: scoreX=%d, scoreO=%d\n", j, scoreX, scoreO);
-    }   // end of for-i
+    }   // end of for-j
 
     return totalScoreX - totalScoreO;
 }
