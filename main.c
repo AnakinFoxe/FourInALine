@@ -26,7 +26,7 @@ bool debug = FALSE;
 int board_[SIZE][SIZE];
 char input_[INPUT_LEN];
 
-bool firstMove_ = FALSE;
+bool firstMove_ = TRUE;
 
 /**
 * Help Function Declarations
@@ -48,12 +48,15 @@ int scoreBoard(int board[SIZE][SIZE]);
 */
 int main() {
 
-    printBoard(board_);
-
     int moveI;
     int moveJ;
     int count = 0;
     bool run = TRUE;
+
+    if (firstMove_)
+        makeMove(3, 4, GRID_X, board_);
+
+    printBoard(board_);
 
     while (run) {
 
@@ -61,8 +64,6 @@ int main() {
         int move = getInput(input_);
         moveI = move / 10;
         moveJ = move % 10;
-//        moveI = 3;
-//        moveJ = 3;
 
         makeMove(moveI, moveJ, GRID_O, board_);
 
@@ -82,6 +83,7 @@ int main() {
     }
 
     if (run == FALSE) {
+        debug = TRUE;
 //        makeMove(0, 1, GRID_O, board_);
 //        makeMove(0, 3, GRID_O, board_);
 //        makeMove(0, 4, GRID_O, board_);
@@ -256,8 +258,6 @@ int findNextMove(int board[SIZE][SIZE], int *moveI, int *moveJ, int depth) {
 
 
                 int scoreX = 50000;
-                int bestOI = -1;
-                int bestOJ = -1;
 
                 // all possible moves for O
                 for (int x = 0; x < SIZE; ++x) {
@@ -274,8 +274,6 @@ int findNextMove(int board[SIZE][SIZE], int *moveI, int *moveJ, int depth) {
                             markAround(x, y, boardO);
 
                             int scoreO = -50000;
-                            int bestXI = -1;
-                            int bestXJ = -1;
 
                             // all possible moves for X
                             for (int m = 0; m < SIZE; ++m) {
@@ -303,8 +301,6 @@ int findNextMove(int board[SIZE][SIZE], int *moveI, int *moveJ, int depth) {
                                         }
                                         if (score > scoreO) {
                                             scoreO = score;
-//                                            bestXI = m;
-//                                            bestXJ = n;
                                         }
                                     }
                                 }
@@ -312,8 +308,6 @@ int findNextMove(int board[SIZE][SIZE], int *moveI, int *moveJ, int depth) {
 
                             if (scoreO < scoreX) {
                                 scoreX = scoreO;
-//                                bestOI = bestXI;
-//                                bestOJ = bestXJ;
                             }
                         }
                     }
@@ -333,12 +327,31 @@ int findNextMove(int board[SIZE][SIZE], int *moveI, int *moveJ, int depth) {
     return finalScore;
 }
 
-int contScore(int contValue, bool firstMove) {
-    int score = contValue * contValue + firstMove;
+int contScore(int contValue, bool naked, bool firstMove) {
+    int score = 0;
 
-    if (contValue < 3) {    // when continuous value is less than 3
-        score = contValue * (firstMove ? contValue : 1);
-    }
+//    if (naked) {
+//        score *= contValue;
+//        if (firstMove && contValue > 1) {
+//            ++score;
+//        }
+//    } else {
+//        if (contValue > 2) {
+//            score *= contValue;
+//        }
+//    }
+
+    if (contValue >= 4)
+        score = 64;
+    else if (contValue == 3 && naked)
+        score = 32;
+    else if (contValue == 3 && naked == FALSE)
+        score = 8;
+    else if (contValue == 2 && naked)
+        score = 4;
+    else if (contValue == 2 && naked == FALSE)
+        score = 2;
+
 
     return score;
 }
@@ -349,6 +362,7 @@ void updateNakedBoard(int nakedBoard[SIZE][SIZE], int nakedCandidate[SIZE], int 
             int i = nakedCandidate[idx] / 10;
             int j = nakedCandidate[idx] % 10;
             nakedBoard[i][j] += 1;
+//            printf("updated %d,%d, maxIdx=%d\n", i, j, maxIdx);
         }
 }
 
@@ -387,9 +401,33 @@ int scoreBoard(int board[SIZE][SIZE]) {
                             break;
                         case GRID_X:
                             ++spaceX;
+                            if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK) { // checkpoint
+                                if (isNaked)    // naked confirmed
+                                    updateNakedBoard(nakedBoardX, nakedCandidate, nakedCandidateIdx);
+
+                                memset((void *)nakedCandidate, 0, sizeof(int) * SIZE);
+                                nakedCandidateIdx = 0;
+
+                                if (spaceX >= WIN_LENGTH)
+                                    scoreX += contScore(continuousX, isNaked, firstMove_);
+                                isNaked = FALSE;
+                                continuousX = 0;
+                            }
                             break;
                         case GRID_O:
                             ++spaceO;
+                            if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK) { // checkpoint
+                                if (isNaked)    // naked confirmed
+                                    updateNakedBoard(nakedBoardO, nakedCandidate, nakedCandidateIdx);
+
+                                memset((void *)nakedCandidate, 0, sizeof(int) * SIZE);
+                                nakedCandidateIdx = 0;
+
+                                if (spaceO >= WIN_LENGTH)
+                                    scoreO += contScore(continuousO, isNaked, 1 - firstMove_);
+                                isNaked = FALSE;
+                                continuousO = 0;
+                            }
                             break;
                         default:
                             break;
@@ -411,14 +449,15 @@ int scoreBoard(int board[SIZE][SIZE]) {
                             if (isNaked) {
                                 if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK) { // naked confirmed
                                     updateNakedBoard(nakedBoardO, nakedCandidate, nakedCandidateIdx);
-                                }
+                                } else
+                                    isNaked = FALSE;
                                 memset((void *)nakedCandidate, 0, sizeof(int) * SIZE);
                                 nakedCandidateIdx = 0;
-                                isNaked = FALSE;
                             }
 
-                            if (spaceO >= WIN_LENGTH) 
-                                scoreO += contScore(continuousO, 1 - firstMove_);
+                            if (spaceO >= WIN_LENGTH)
+                                scoreO += contScore(continuousO, isNaked, 1 - firstMove_);
+                            isNaked = FALSE;
                             continuousO = 0;
                             spaceO = 0;
                             spaceX += spaceEmpty;
@@ -448,14 +487,15 @@ int scoreBoard(int board[SIZE][SIZE]) {
                             if (isNaked) {
                                 if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK) { // naked confirmed
                                     updateNakedBoard(nakedBoardX, nakedCandidate, nakedCandidateIdx);
-                                }
+                                } else
+                                    isNaked = FALSE;
                                 memset((void *)nakedCandidate, 0, sizeof(int) * SIZE);
                                 nakedCandidateIdx = 0;
-                                isNaked = FALSE;
                             }
 
                             if (spaceX >= WIN_LENGTH)
-                                scoreX += contScore(continuousX, firstMove_);
+                                scoreX += contScore(continuousX, isNaked, firstMove_);
+                            isNaked = FALSE;
                             continuousX = 0;
                             spaceX = 0;
                             spaceO += spaceEmpty;
@@ -490,21 +530,21 @@ int scoreBoard(int board[SIZE][SIZE]) {
             if (isNaked) {
                 if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK) { // naked confirmed
                     updateNakedBoard(nakedBoardO, nakedCandidate, nakedCandidateIdx);
-                }
-                isNaked = FALSE;
+                } else
+                    isNaked = FALSE;
             }
         if (dominantGrid == GRID_X)
             if (isNaked) {
                 if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK) { // naked confirmed
                     updateNakedBoard(nakedBoardX, nakedCandidate, nakedCandidateIdx);
-                }
-                isNaked = FALSE;
+                } else
+                    isNaked = FALSE;
             }
 
         if (spaceX >= WIN_LENGTH)
-            scoreX += contScore(continuousX, firstMove_);    // TODO: need to increase this weight
+            scoreX += contScore(continuousX, isNaked, firstMove_);    // TODO: need to increase this weight
         if (spaceO >= WIN_LENGTH)
-            scoreO += contScore(continuousO, 1 - firstMove_);
+            scoreO += contScore(continuousO, isNaked, 1 - firstMove_);
 
         totalScoreX += scoreX;
         totalScoreO += scoreO;
@@ -539,9 +579,33 @@ int scoreBoard(int board[SIZE][SIZE]) {
                             break;
                         case GRID_X:
                             ++spaceX;
+                            if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK) { // checkpoint
+                                if (isNaked)    // naked confirmed
+                                    updateNakedBoard(nakedBoardX, nakedCandidate, nakedCandidateIdx);
+
+                                memset((void *)nakedCandidate, 0, sizeof(int) * SIZE);
+                                nakedCandidateIdx = 0;
+
+                                if (spaceX >= WIN_LENGTH)
+                                    scoreX += contScore(continuousX, isNaked, firstMove_);
+                                isNaked = FALSE;
+                                continuousX = 0;
+                            }
                             break;
                         case GRID_O:
                             ++spaceO;
+                            if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK) { // checkpoint
+                                if (isNaked)    // naked confirmed
+                                    updateNakedBoard(nakedBoardO, nakedCandidate, nakedCandidateIdx);
+
+                                memset((void *)nakedCandidate, 0, sizeof(int) * SIZE);
+                                nakedCandidateIdx = 0;
+
+                                if (spaceO >= WIN_LENGTH)
+                                    scoreO += contScore(continuousO, isNaked, 1 - firstMove_);
+                                isNaked = FALSE;
+                                continuousO = 0;
+                            }
                             break;
                         default:
                             break;
@@ -562,15 +626,16 @@ int scoreBoard(int board[SIZE][SIZE]) {
                         case GRID_O:    // checkpoint
                             if (isNaked) {
                                 if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK) { // naked confirmed
-                                    updateNakedBoard(nakedBoardX, nakedCandidate, nakedCandidateIdx);
-                                }
+                                    updateNakedBoard(nakedBoardO, nakedCandidate, nakedCandidateIdx);
+                                } else
+                                    isNaked = FALSE;
                                 memset((void *)nakedCandidate, 0, sizeof(int) * SIZE);
                                 nakedCandidateIdx = 0;
-                                isNaked = FALSE;
                             }
 
                             if (spaceO >= WIN_LENGTH)
-                                scoreO += contScore(continuousO, 1 - firstMove_);
+                                scoreO += contScore(continuousO, isNaked, 1 - firstMove_);
+                            isNaked = FALSE;
                             continuousO = 0;
                             spaceO = 0;
                             spaceX += spaceEmpty;
@@ -599,15 +664,16 @@ int scoreBoard(int board[SIZE][SIZE]) {
                         case GRID_X:    // checkpoint
                             if (isNaked) {
                                 if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK) { // naked confirmed
-                                    updateNakedBoard(nakedBoardO, nakedCandidate, nakedCandidateIdx);
-                                }
+                                    updateNakedBoard(nakedBoardX, nakedCandidate, nakedCandidateIdx);
+                                } else
+                                    isNaked = FALSE;
                                 memset((void *)nakedCandidate, 0, sizeof(int) * SIZE);
                                 nakedCandidateIdx = 0;
-                                isNaked = FALSE;
                             }
 
                             if (spaceX >= WIN_LENGTH)
-                                scoreX += contScore(continuousX, firstMove_);
+                                scoreX += contScore(continuousX, isNaked, firstMove_);
+                            isNaked = FALSE;
                             continuousX = 0;
                             spaceX = 0;
                             spaceO += spaceEmpty;
@@ -635,10 +701,6 @@ int scoreBoard(int board[SIZE][SIZE]) {
 
             previousGrid = board[i][j];
 
-            if (isNaked) {
-                nakedCandidate[nakedCandidateIdx] = i * 10 + j;
-                ++nakedCandidateIdx;
-            }
         }   // end of for-i
 
         // checkpoint
@@ -646,21 +708,21 @@ int scoreBoard(int board[SIZE][SIZE]) {
             if (isNaked) {
                 if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK) { // naked confirmed
                     updateNakedBoard(nakedBoardO, nakedCandidate, nakedCandidateIdx);
-                }
-                isNaked = FALSE;
+                } else
+                    isNaked = FALSE;
             }
         if (dominantGrid == GRID_X)
             if (isNaked) {
                 if (previousGrid == GRID_EMPTY || previousGrid == GRID_THINK) { // naked confirmed
                     updateNakedBoard(nakedBoardX, nakedCandidate, nakedCandidateIdx);
-                }
-                isNaked = FALSE;
+                } else
+                    isNaked = FALSE;
             }
 
         if (spaceX >= WIN_LENGTH)
-            scoreX += contScore(continuousX, firstMove_);    // TODO: need to increase this weight
+            scoreX += contScore(continuousX, isNaked, firstMove_);    // TODO: need to increase this weight
         if (spaceO >= WIN_LENGTH)
-            scoreO += contScore(continuousO, 1 - firstMove_);
+            scoreO += contScore(continuousO, isNaked, 1 - firstMove_);
 
         totalScoreX += scoreX;
         totalScoreO += scoreO;
@@ -674,13 +736,13 @@ int scoreBoard(int board[SIZE][SIZE]) {
     for (int i = 0; i < SIZE; ++i)
         for (int j = 0; j < SIZE; ++j) {
             if (nakedBoardX[i][j] > 1) {
-                totalScoreX += 5;
+                totalScoreX += 12;
 
                 if (debug)
                     printf("naked cross for X at %d,%d\n", i, j);
             }
             if (nakedBoardO[i][j] > 1) {
-                totalScoreO += 5;
+                totalScoreO += 12;
 
                 if (debug)
                     printf("naked cross for O at %d,%d\n", i, j);
