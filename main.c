@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <sys/time.h>
 
 // bool type
 #define TRUE        1
@@ -40,6 +41,7 @@ void printBoard(int board[SIZE][SIZE]);
  * Core Function Declarations
  */
 void markGridThink(int board[SIZE][SIZE]);
+int findMove(int board[SIZE][SIZE], int *moveI, int *moveJ, int grid, int bestScore, int depth);
 int findNextMove(int board[SIZE][SIZE], int *moveI, int *moveJ, int depth);
 int scoreBoard(int board[SIZE][SIZE]);
 
@@ -65,17 +67,29 @@ int main() {
         moveI = move / 10;
         moveJ = move % 10;
 
+        struct timeval start, end;
+        long secs_used,micros_used;
+
+        gettimeofday(&start, NULL);
+
         makeMove(moveI, moveJ, GRID_O, board_);
 
 
 
         markGridThink(board_);
 
-        printf("final score = %d\n", findNextMove(board_, &moveI, &moveJ, 1));
+//        printf("final score = %d\n", findNextMove(board_, &moveI, &moveJ, 1));
+        printf("final score = %d\n", findMove(board_, &moveI, &moveJ, GRID_X, -50000, 5));
 
         makeMove(moveI, moveJ, GRID_X, board_);
 
+        gettimeofday(&end, NULL);
+        secs_used=(end.tv_sec - start.tv_sec); //avoid overflow by subtracting first
+        micros_used= ((secs_used*1000000) + end.tv_usec) - (start.tv_usec);
+        printf("micros_used: %ld\n",micros_used);
+
         printBoard(board_);
+        printf("computer move: %c%d\n", moveI+'A', moveJ+1);
         debug = TRUE;
         printf("score of the board = %d\n", scoreBoard(board_));
 
@@ -216,6 +230,8 @@ void printBoard(int board[SIZE][SIZE]) {
 }
 
 
+
+
 /**
  * Core Function Definitions
  */
@@ -237,6 +253,61 @@ void markGridThink(int board[SIZE][SIZE]) {
             }
         }
     }
+}
+
+int findMove(int board[SIZE][SIZE], int *moveI, int *moveJ, int grid, int bestScore, int depth) {
+    for (int i = 0; i < SIZE; ++i) {
+        for (int j = 0; j < SIZE; ++j) {
+            if (isThink(i, j, board)) {
+                // generate new board for X
+                int nextBoard[SIZE][SIZE];
+                memcpy((void *) nextBoard, (void const *) board, sizeof(int) * SIZE * SIZE);
+
+                int score;
+
+                // make move
+                makeMove(i, j, grid, nextBoard);
+
+                // generate next possible moves for O
+                markAround(i, j, nextBoard);
+
+                if (depth == 1) {
+                    score = scoreBoard(nextBoard);
+//                    *moveI = i;
+//                    *moveJ = j;
+//                    return score;
+                } else {
+                    int a, b;
+                    int nextGrid;
+                    int nextBestScore;
+                    if (grid == GRID_X) {
+                        nextGrid = GRID_O;
+                        nextBestScore = 50000;
+                    } else if (grid == GRID_O) {
+                        nextGrid = GRID_X;
+                        nextBestScore = -50000;
+                    }
+                    score = findMove(nextBoard, &a, &b, nextGrid, nextBestScore, depth - 1);
+                }
+
+                if (grid == GRID_X) {
+                    if (score > bestScore) {
+                        bestScore = score;
+                        *moveI = i;
+                        *moveJ = j;
+                    }
+                } else if (grid == GRID_O) {
+                    if (score < bestScore) {
+                        bestScore = score;
+                        *moveI = i;
+                        *moveJ = j;
+                    }
+                }
+            }
+        }
+    }
+
+    return bestScore;
 }
 
 int findNextMove(int board[SIZE][SIZE], int *moveI, int *moveJ, int depth) {
@@ -273,6 +344,7 @@ int findNextMove(int board[SIZE][SIZE], int *moveI, int *moveJ, int depth) {
                             // generate next possible moves for X
                             markAround(x, y, boardO);
 
+
                             int scoreO = -50000;
 
                             // all possible moves for X
@@ -283,25 +355,79 @@ int findNextMove(int board[SIZE][SIZE], int *moveI, int *moveJ, int depth) {
                                         int boardLeaf[SIZE][SIZE];
                                         memcpy((void *) boardLeaf, (void const *)boardO, sizeof(int) * SIZE * SIZE);
 
-                                        // if this is the last layer
-                                        // generate score and find the best one
-                                        int score;
-                                        if (depth == 1) {
-                                            // make move
-                                            makeMove(m, n, GRID_X, boardLeaf);
+                                        // make move
+                                        makeMove(m, n, GRID_X, boardLeaf);
 
-                                            // generate next possible moves for O
-                                            markAround(m, n, boardLeaf);
+                                        // generate next possible moves for O
+                                        markAround(m, n, boardLeaf);
 
-                                            score = scoreBoard(boardLeaf);
-                                        } else {
-                                            int a, b;
-                                            score = findNextMove(boardLeaf, &a, &b, depth - 1);
-                                            printf("");
+                                        int scoreM = 50000;
+
+                                        // again
+                                        for (int a = 0; a < SIZE; ++a) {
+                                            for (int b = 0; b < SIZE; ++b) {
+                                                if (isThink(a, b, boardLeaf)) {
+                                                    // generate new board for X
+                                                    int boardFlower[SIZE][SIZE];
+                                                    memcpy((void *) boardFlower, (void const *) boardLeaf, sizeof(int) * SIZE * SIZE);
+
+                                                    // make move
+                                                    makeMove(a, b, GRID_O, boardFlower);
+
+                                                    // generate next possible moves for O
+                                                    markAround(a, b, boardFlower);
+
+                                                    int scoreN = -50000;
+
+                                                    // and again
+                                                    for (int p = 0; p < SIZE; ++p) {
+                                                        for (int q = 0; q < SIZE; ++q) {
+                                                            if (isThink(p, q, boardFlower)) {
+                                                                // generate new board for X
+                                                                int boardLast[SIZE][SIZE];
+                                                                memcpy((void *) boardLast, (void const *) boardFlower, sizeof(int) * SIZE * SIZE);
+
+                                                                // make move
+                                                                makeMove(p, q, GRID_X, boardLast);
+
+                                                                // generate next possible moves for O
+                                                                markAround(p, q, boardLast);
+
+                                                                int score = scoreBoard(boardLast);
+
+                                                                if (score > scoreN)
+                                                                    scoreN = score;
+                                                            }
+                                                        }
+                                                    }
+
+                                                    if (scoreN < scoreM)
+                                                        scoreM = scoreN;
+                                                }
+                                            }
                                         }
-                                        if (score > scoreO) {
-                                            scoreO = score;
-                                        }
+
+                                        if (scoreM > scoreO)
+                                            scoreO = scoreM;
+//                                        // if this is the last layer
+//                                        // generate score and find the best one
+//                                        int score;
+//                                        if (depth == 1) {
+//                                            // make move
+//                                            makeMove(m, n, GRID_X, boardLeaf);
+//
+//                                            // generate next possible moves for O
+//                                            markAround(m, n, boardLeaf);
+//
+//                                            score = scoreBoard(boardLeaf);
+//                                        } else {
+//                                            int a, b;
+//                                            score = findNextMove(boardLeaf, &a, &b, depth - 1);
+//                                            printf("");
+//                                        }
+//                                        if (score > scoreO) {
+//                                            scoreO = score;
+//                                        }
                                     }
                                 }
                             }   // all possible moves for X
@@ -351,6 +477,8 @@ int contScore(int contValue, bool naked, bool firstMove) {
         score = 4;
     else if (contValue == 2 && naked == FALSE)
         score = 2;
+//    else
+//        score = 1;
 
 
     return score;
